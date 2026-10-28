@@ -355,6 +355,25 @@
 
     .result-copy { max-width: 340px; margin: 0 auto 25px; color: var(--muted); }
     .result .primary { min-width: 175px; }
+    .result-actions { display: grid; justify-items: center; gap: 10px; }
+    .result-actions .primary { width: min(100%, 250px); }
+    .review { text-align: left; }
+    .review-title, .review-intro { text-align: center; }
+    .review-title:focus { outline: 3px solid color-mix(in srgb, var(--accent), transparent 55%); outline-offset: 4px; }
+    .review-list { display: grid; gap: 12px; margin: 22px 0; padding: 0; list-style: none; }
+    .review-item {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface-soft);
+    }
+    .review-item h3 { margin: 0 0 12px; font-size: 17px; line-height: 1.35; }
+    .review-item p { margin: 8px 0 0; }
+    .review-label { color: var(--muted); font-weight: 650; }
+    .review-selected { color: var(--red); }
+    .review-correct { color: var(--green); }
+    .review-fact { color: var(--muted); }
+    .review .actions { margin-top: 22px; }
     [hidden] { display: none !important; }
 
     @keyframes shake {
@@ -418,8 +437,22 @@
         <h2 id="result-title">Cosmic explorer!</h2>
         <div id="result-score" class="result-score">0 / 10</div>
         <p id="result-copy" class="result-copy"></p>
-        <button id="restart" class="primary" type="button">Play again <span aria-hidden="true">↻</span></button>
+        <div class="result-actions">
+          <button id="review-missed" class="primary" type="button">Review missed answers</button>
+          <button id="restart" class="primary" type="button">Play again <span aria-hidden="true">↻</span></button>
+        </div>
       </div>
+
+      <section id="review" class="result review" aria-labelledby="review-title" hidden>
+        <p class="eyebrow">Mission review</p>
+        <h2 id="review-title" class="review-title" tabindex="-1">Missed answers</h2>
+        <p class="review-intro">Review each question, your answer, and the correct answer.</p>
+        <p id="review-empty" hidden>No missed answers this time. Perfect mission!</p>
+        <ol id="review-list" class="review-list"></ol>
+        <div class="actions">
+          <button id="back-to-results" class="primary" type="button">Back to results</button>
+        </div>
+      </section>
     </section>
   </main>
 
@@ -440,6 +473,7 @@
     const welcome = document.getElementById("welcome");
     const quiz = document.getElementById("quiz");
     const results = document.getElementById("results");
+    const review = document.getElementById("review");
     const countLabel = document.getElementById("question-count");
     const scoreLabel = document.getElementById("score");
     const progressTrack = document.getElementById("progress-track");
@@ -449,6 +483,7 @@
     const answersContainer = document.getElementById("answers");
     const feedback = document.getElementById("feedback");
     const nextButton = document.getElementById("next");
+    const selectedAnswers = [];
     let questionIndex = 0;
     let score = 0;
     let answered = false;
@@ -484,6 +519,7 @@
       if (answered) return;
       answered = true;
       const current = questions[questionIndex];
+      selectedAnswers[questionIndex] = selectedIndex;
       const buttons = [...answersContainer.querySelectorAll(".answer")];
       buttons.forEach(button => { button.disabled = true; });
       if (selectedIndex === current.answer) {
@@ -518,7 +554,49 @@
       document.getElementById("result-title").textContent = outcome.title;
       document.getElementById("result-score").textContent = `${score} / ${questions.length}`;
       document.getElementById("result-copy").textContent = outcome.copy;
+      document.getElementById("review-missed").hidden = score === questions.length;
+      renderReview();
       document.getElementById("restart").focus();
+    }
+
+    function renderReview() {
+      const reviewList = document.getElementById("review-list");
+      const emptyMessage = document.getElementById("review-empty");
+      const missedQuestions = questions.reduce((missed, question, index) => {
+        if (selectedAnswers[index] !== question.answer) {
+          missed.push({ question, selectedIndex: selectedAnswers[index] });
+        }
+        return missed;
+      }, []);
+      reviewList.replaceChildren();
+      emptyMessage.hidden = missedQuestions.length > 0;
+      reviewList.hidden = missedQuestions.length === 0;
+
+      missedQuestions.forEach(({ question, selectedIndex }) => {
+        const item = document.createElement("li");
+        item.className = "review-item";
+        const prompt = document.createElement("h3");
+        prompt.textContent = question.prompt;
+        const selected = document.createElement("p");
+        selected.className = "review-selected";
+        const selectedLabel = document.createElement("span");
+        selectedLabel.className = "review-label";
+        selectedLabel.textContent = "Your answer: ";
+        selected.append(selectedLabel);
+        selected.append(document.createTextNode(question.choices[selectedIndex]));
+        const correct = document.createElement("p");
+        correct.className = "review-correct";
+        const correctLabel = document.createElement("span");
+        correctLabel.className = "review-label";
+        correctLabel.textContent = "Correct answer: ";
+        correct.append(correctLabel);
+        correct.append(document.createTextNode(question.choices[question.answer]));
+        const fact = document.createElement("p");
+        fact.className = "review-fact";
+        fact.textContent = question.fact;
+        item.append(prompt, selected, correct, fact);
+        reviewList.append(item);
+      });
     }
 
     document.getElementById("start").addEventListener("click", () => {
@@ -539,9 +617,22 @@
       }
     });
 
+    document.getElementById("review-missed").addEventListener("click", () => {
+      results.hidden = true;
+      review.hidden = false;
+      document.getElementById("review-title").focus();
+    });
+
+    document.getElementById("back-to-results").addEventListener("click", () => {
+      review.hidden = true;
+      results.hidden = false;
+      document.getElementById("review-missed").focus();
+    });
+
     document.getElementById("restart").addEventListener("click", () => {
       questionIndex = 0;
       score = 0;
+      selectedAnswers.length = 0;
       results.hidden = true;
       quiz.hidden = false;
       renderQuestion();
